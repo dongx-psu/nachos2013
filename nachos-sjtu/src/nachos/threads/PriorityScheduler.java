@@ -63,14 +63,18 @@ public class PriorityScheduler extends Scheduler {
 		getThreadState(thread).setPriority(priority);
 	}
 
-	public boolean increasePriority() {
+	public boolean increasePriority()
+	{
 		boolean intStatus = Machine.interrupt().disable();
 
 		KThread thread = KThread.currentThread();
 
 		int priority = getPriority(thread);
 		if (priority == priorityMaximum)
+		{
+		  Machine.interrupt().restore(intStatus); // bug identified by Xiao Jia @ 2011-11-04
 			return false;
+		}
 
 		setPriority(thread, priority + 1);
 
@@ -78,14 +82,18 @@ public class PriorityScheduler extends Scheduler {
 		return true;
 	}
 
-	public boolean decreasePriority() {
+	public boolean decreasePriority()
+	{
 		boolean intStatus = Machine.interrupt().disable();
 
 		KThread thread = KThread.currentThread();
 
 		int priority = getPriority(thread);
 		if (priority == priorityMinimum)
+		{
+		  Machine.interrupt().restore(intStatus); // bug identified by Xiao Jia @ 2011-11-04
 			return false;
+		}
 
 		setPriority(thread, priority - 1);
 
