@@ -485,7 +485,7 @@ public class UserProcess {
 	protected int numPages;
 
 	/** The number of pages in the program's stack. */
-	protected final int stackPages = 8;
+	protected final int stackPages = Config.getInteger("Processor.numStackPages", 8);
 
 	private int initialPC, initialSP;
 	private int argc, argv;
