@@ -178,7 +178,9 @@ public final class Machine {
 			String diskFileName = Config.getString("Machine.diskFilename",
 					"nachos-disk.dat");
 			synchDisk = new SynchDisk(privilege, diskFileName);
-		} else if (Config.getBoolean("Machine.stubFileSystem"))
+		}
+		
+		if (Config.getBoolean("Machine.stubFileSystem"))
 			stubFileSystem = new StubFileSystem(privilege, testDirectory);
 
 		if (Config.getBoolean("Machine.networkLink"))
