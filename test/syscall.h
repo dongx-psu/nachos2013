@@ -53,12 +53,12 @@
 #define LinkFileType 2
 
 typedef struct FileStatType {
-    char name[FileNameMaxLen];
-    int size;
-    int sectors;
-    int type;
-    int inode;
-    int links;
+    char name[FileNameMaxLen]; // name
+    int size; // size in bytes
+    int sectors; // number of sectors occupied
+    int type; // NormalFileType(0), DirFileType(1) or LinkFileType(2)
+    int inode; // the address of the (first) iNode
+    int links; // number of links (with regard to hard link, not symbolic link)
 } FileStat;
 
 /* The system call interface. These are the operations the Nachos kernel needs
@@ -340,7 +340,7 @@ int readdir(char *dirname, char buf[][], int size, int namesize);
  *
  * The stat() copies all file statistic to the stat
  * 
- * Return -1 on failure, and the number of charactors stored in buf on success.
+ *  Return 0 on success, and -1 on failure.
  */
 int stat(char* filename, FileStat *stat);
 /**
