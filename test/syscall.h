@@ -35,6 +35,7 @@
 #define syscallLink               20
 #define syscallSymlink		21
 
+
 /* Don't want the assembler to see C code, but start.s includes syscall.h. */
 #ifndef START_S
 

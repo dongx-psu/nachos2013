@@ -108,6 +108,56 @@ static int tokenizeCommand(char* command, int maxTokens, char *tokens[], char* s
     return numTokens;
 }
 
+
+void extend(char* s){
+    int i;
+    char temp[256] = "";
+    for (i = 0; i + strlen(s) < 15; i++)
+        strcat(temp, " ");
+    strcat(temp, s);
+    strcpy(s, temp);
+}
+
+void getFileType(char* str, int type){
+    if (type == NormalFileType)
+        strcpy(str, "         Normal");
+    else if (type == DirFileType)
+        strcpy(str, "      Directory");
+    else if (type == LinkFileType)
+        strcpy(str, "           Link");
+    else
+        strcpy(str, "        Unknown");
+}
+    
+char lsbuf[100][100];
+char buf[1024*1024*2];
+
+void ls(char* pathname){
+    int size = readdir(pathname, lsbuf, 100, 100);
+    if (size < 0){
+        printf("readdir failed\n");
+        return;
+    }
+    char temp[100];
+    char fileType[15];
+    FileStat statbuf;
+    int i;
+    printf("%s\n", "           name           size           blocks         inode          links          type");
+    for (i = 0;  i < size; i++){
+        strcpy(temp, pathname);
+        if (strcmp(temp, "/") != 0)
+            strcat(temp, "/");
+        strcat(temp, lsbuf[i]);
+        if (stat(temp, &statbuf) == 0){
+            extend(statbuf.name);
+            getFileType(fileType, statbuf.type);
+            printf("%s%15d%15d%15d%15d%s\n",  statbuf.name, statbuf.size, statbuf.sectors,
+                   statbuf.inode, statbuf.links, fileType);
+        } else printf("stat failed\n");
+    }
+}
+
+
 void runline(char* line) {
     int pid, background, status;
    
@@ -158,7 +208,101 @@ void runline(char* line) {
 		return;
 	    }
 	}
-	else {
+	else if (strcmp(argv[0], "cd")==0 || strcmp(argv[0], "chdir")==0) {
+	    if (argc == 2) {
+            if (chdir(argv[1]) != 0)
+		printf("cd failed\n");
+            return;
+	    }
+	    else {
+             char buf[100];
+             getcwd(buf, 100);
+             printf("%s\n", buf);
+             return;
+	    }
+	}
+	else if (strcmp(argv[0], "mkdir")==0 || strcmp(argv[0], "md")==0) {
+	    if (argc == 2) {
+            if (mkdir(argv[1]) != 0)
+		printf("mkdir failed\n");
+            return;
+	    }
+	    else {
+		printf("mkdir: Expression Syntax.\n");
+		return;
+	    }
+	}  else if (strcmp(argv[0], "rmdir")==0 || strcmp(argv[0], "rd")==0) {
+	    if (argc == 2) {
+            if (rmdir(argv[1]) != 0)
+                printf("rmdir failed\n");
+            return;
+	    }
+	    else {
+		printf("rmdir: Expression Syntax.\n");
+		return;
+	    }
+	} else if (strcmp(argv[0], "dir") == 0 || strcmp(argv[0], "ls")==0){
+	    if (argc == 1) {
+            ls(".");
+            return;
+	    }
+	    else if (argc == 2){
+            ls(argv[1]);
+            return;
+           }  else {
+             printf("ls: Expression Syntax.\n");
+		return;
+	    }        
+    } else if (strcmp(argv[0], "creat") == 0){
+        if (argc == 2) {
+            if (creat(argv[1]) < 0)
+                printf("creat failed\n");
+            return;
+        }else if (argc == 3){
+            int fp = creat(argv[1]);
+            if (fp < 0){
+                printf("creat failed\n");
+                return;
+            }
+            int count = atoi(argv[2]);
+            if (write(fp, buf, count) < 0){
+                printf("write failed\n");
+                return;
+            }
+            close(fp);
+            return;
+        }else {
+		printf("creat: Expression Syntax.\n");
+		return;
+        }
+    } else if (strcmp(argv[0], "link") == 0){
+        if (argc == 3){
+            if (link(argv[1], argv[2]) != 0)
+                printf("link failed\n");
+            return;
+        } else {
+            printf("link: Expression Syntax.\n");
+            return;
+        }
+    } else if (strcmp(argv[0], "symlink") == 0){
+        if (argc == 3){
+            if (symlink(argv[1], argv[2]) != 0)
+                printf("symlink failed\n");
+            return;
+        } else {
+            printf("symlink: Expression Syntax.\n");
+            return;
+        }
+    } else if (strcmp(argv[0], "unlink") == 0){
+        if (argc == 2){
+            if (unlink(argv[1]) != 0)
+                printf("unlink failed\n");
+            return;
+        } else {
+            printf("unlink: Expression Syntax.\n");
+            return;
+        }
+    } else {
 	    strcpy(prog, argv[0]);
 	    strcat(prog, ".coff");
 
