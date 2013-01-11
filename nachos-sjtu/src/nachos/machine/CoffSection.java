@@ -7,6 +7,8 @@ import java.util.Arrays;
 
 /**
  * A <tt>CoffSection</tt> manages a single section within a COFF executable.
+ * 
+ * @see http://www-scf.usc.edu/~csci402/ncode/coff_8h-source.html
  */
 public class CoffSection {
 	/**
