@@ -6,6 +6,8 @@ import java.io.EOFException;
 
 /**
  * A COFF (common object file format) loader.
+ * 
+ * @see http://www-scf.usc.edu/~csci402/ncode/coff_8h-source.html
  */
 public class Coff {
 	/**
