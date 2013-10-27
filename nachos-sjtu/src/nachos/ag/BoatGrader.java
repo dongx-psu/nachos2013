@@ -1,6 +1,15 @@
 package nachos.ag;
 
-public class BoatGrader {
+import nachos.threads.Boat;
+import nachos.threads.KThread;
+import nachos.machine.Lib;
+
+/**
+ * Boat Grader
+ * 
+ * @author crowwork
+ */
+public class BoatGrader extends BasicTestGrader {
 
 	/**
 	 * BoatGrader consists of functions to be called to show that your solution
@@ -12,13 +21,60 @@ public class BoatGrader {
 	 * from one island to another. Inclusion in this class does not imply that
 	 * any of the indicated actions are a good idea or even allowed.
 	 */
+	void run() {
+
+		final int adults = getIntegerArgument("adults");
+		final int children = getIntegerArgument("children");
+		Lib.assertTrue(adults >= 0 && children >= 0,
+				"number can not be negative");
+
+		this.startTest(adults, children);
+		done();
+	}
+
+	public void startTest(int adults, int children) {
+		adultsOahu = adults;
+		childrenOahu = children;
+		adultsMolokai = childrenMolokai = 0;
+
+		Boat.begin(adultsOahu, childrenOahu, this);
+	}
+
+	protected int adultsOahu, childrenOahu;
+	protected int adultsMolokai, childrenMolokai;
+
+	/**
+	 */
+	protected void check(boolean value, String msg) {
+		Lib.assertTrue(value, msg);
+	}
+
+	/**
+	 * all the passenger has been crossed
+	 */
+	private void AllCrossed() {
+		check(adultsOahu == 0, "there are still " + adultsOahu
+				+ " adults in Oahu");
+		check(childrenOahu == 0, "there are still " + childrenOahu
+				+ " children in Oahu");
+	}
+
+	private void doYield() {
+		while (random.nextBoolean())
+			KThread.yield();
+	}
 
 	/*
 	 * ChildRowToMolokai should be called when a child pilots the boat from Oahu
 	 * to Molokai
 	 */
 	public void ChildRowToMolokai() {
-		System.out.println("**Child rowing to Molokai.");
+		doYield();
+		check(childrenOahu > 0,
+				"no children in Oahu,invalid operation ChildRowToMolokai");
+		childrenOahu--;
+		childrenMolokai++;
+		// System.out.println("**Child rowing to Molokai.");
 	}
 
 	/*
@@ -26,7 +82,12 @@ public class BoatGrader {
 	 * to Oahu
 	 */
 	public void ChildRowToOahu() {
-		System.out.println("**Child rowing to Oahu.");
+		doYield();
+		check(childrenMolokai > 0,
+				"no children in Oahu , invalid operation ChildRowToOahu");
+		childrenOahu++;
+		childrenMolokai--;
+		// System.out.println("**Child rowing to Oahu.");
 	}
 
 	/*
@@ -34,7 +95,12 @@ public class BoatGrader {
 	 * disembarks on Molokai
 	 */
 	public void ChildRideToMolokai() {
-		System.out.println("**Child arrived on Molokai as a passenger.");
+		doYield();
+		check(childrenOahu > 0,
+				"no children in Molokai , invalid operation ChildRideToMolokai");
+		childrenOahu--;
+		childrenMolokai++;
+		// System.out.println("**Child arrived on Molokai as a passenger.");
 	}
 
 	/*
@@ -42,7 +108,12 @@ public class BoatGrader {
 	 * disembarks on Oahu
 	 */
 	public void ChildRideToOahu() {
-		System.out.println("**Child arrived on Oahu as a passenger.");
+		doYield();
+		check(childrenMolokai > 0,
+				"no children in Molokai, invalid operation ChildRideToOahu");
+		childrenOahu++;
+		childrenMolokai--;
+		// System.out.println("**Child arrived on Oahu as a passenger.");
 	}
 
 	/*
@@ -50,7 +121,12 @@ public class BoatGrader {
 	 * to Molokai
 	 */
 	public void AdultRowToMolokai() {
-		System.out.println("**Adult rowing to Molokai.");
+		doYield();
+		check(adultsOahu > 0,
+				" no adult in Oahu , invalid operation AdultRowToMolokai");
+		adultsOahu--;
+		adultsMolokai++;
+		// System.out.println("**Adult rowing to Molokai.");
 	}
 
 	/*
@@ -58,7 +134,12 @@ public class BoatGrader {
 	 * to Oahu
 	 */
 	public void AdultRowToOahu() {
-		System.out.println("**Adult rowing to Oahu.");
+		doYield();
+		check(adultsMolokai > 0,
+				"no adult in Molokai , invalid operation AdultRowToOahu");
+		adultsOahu++;
+		adultsMolokai--;
+		// System.out.println("**Adult rowing to Oahu.");
 	}
 
 	/*
@@ -66,7 +147,18 @@ public class BoatGrader {
 	 * disembarks on Molokai
 	 */
 	public void AdultRideToMolokai() {
-		System.out.println("**Adult arrived on Molokai as a passenger.");
+		Lib.assertNotReached("invalid operation AdultRideToMolokai");
+		// System.out.println("**Adult arrived on Molokai as a passenger.");
+	}
+
+	@Override
+	public void readyThread(KThread thread) {
+		if (thread == idleThread) {
+			++idleReadyCount;
+			if (idleReadyCount > 1000)
+				AllCrossed();
+		} else
+			idleReadyCount = 0;
 	}
 
 	/*
@@ -74,6 +166,16 @@ public class BoatGrader {
 	 * disembarks on Oahu
 	 */
 	public void AdultRideToOahu() {
-		System.out.println("**Adult arrived on Oahu as a passenger.");
+		Lib.assertNotReached("invalid operation AdultRideToOahu");
+		// System.out.println("**Adult arrived on Oahu as a passenger.");
 	}
+
+	@Override
+	public void setIdleThread(KThread thread) {
+		thread = idleThread;
+	}
+
+	KThread idleThread;
+	java.util.Random random = new java.util.Random();
+	private static int idleReadyCount = 0;
 }

@@ -1,1 +1,32 @@
-Put your project documents and generated javadoc here.
+Grader Run Configurations
+=========================
+
+Main class: nachos.machine.Machine
+
+Nachos - BoatGrader
+-------------------
+-- nachos.ag.BoatGrader -# adults=4,children=4 -[] conf/proj1.conf
+
+Nachos - DonationGrader
+-----------------------
+-- nachos.ag.DonationGrader -[] conf/proj1.conf
+
+Nachos - JoinGrader
+-------------------
+-- nachos.ag.JoinGrader -# waitTicks=1000,times=10 -[] conf/proj1.conf
+
+Nachos - LockGrader11
+---------------------
+-- nachos.ag.LockGrader11 -[] conf/proj1.conf
+
+Nachos - PriorityGrader
+-----------------------
+-- nachos.ag.PriorityGrader -# threads=5,times=10,length=1000 -[] conf/proj1.conf
+
+Nachos - ThreadGrader1
+----------------------
+-- nachos.ag.ThreadGrader1 -[] conf/proj1.conf
+
+Nachos - ThreadGrader2
+----------------------
+-- nachos.ag.ThreadGrader2 -[] conf/proj1.conf
