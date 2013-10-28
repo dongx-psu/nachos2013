@@ -1,5 +1,7 @@
 package nachos.threads;
 
+import java.util.LinkedList;
+
 /**
  * A <i>communicator</i> allows threads to synchronously exchange 32-bit
  * messages. Multiple threads can be waiting to <i>speak</i>, and multiple
@@ -26,6 +28,20 @@ public class Communicator {
 	 *            the integer to transfer.
 	 */
 	public void speak(int word) {
+		lock.acquire();
+		
+		if (!listenerList.isEmpty()) {
+			Info listener = listenerList.removeFirst();
+			listener.word = word;
+			listener.condition.wake();
+		} else {
+			Info speaker = new Info();
+			speaker.word = word;
+			speakerList.add(speaker);
+			speaker.condition.sleep();
+		}
+		
+		lock.release();
 	}
 
 	/**
@@ -35,6 +51,33 @@ public class Communicator {
 	 * @return the integer transferred.
 	 */
 	public int listen() {
-		return 0;
+		lock.acquire();
+		
+		int res = 0;
+		
+		if (!speakerList.isEmpty()) {
+			Info speaker = speakerList.removeFirst();
+			res = speaker.word;
+			speaker.condition.wake();
+		} else {
+			Info listener = new Info();
+			listenerList.add(listener);
+			listener.condition.sleep();
+			res = listener.word;
+		}
+		
+		lock.release();
+		
+		return res;
 	}
+	
+	private class Info {
+		int word = 0;
+		Condition condition = new Condition(lock);
+	}
+	
+	Lock lock = new Lock();
+	LinkedList<Info> speakerList = new LinkedList<Info>();
+	LinkedList<Info> listenerList = new LinkedList<Info>();
+	
 }
