@@ -1,5 +1,8 @@
 package nachos.threads;
 
+import java.util.HashSet;
+import java.util.LinkedList;
+
 import nachos.machine.Lib;
 import nachos.machine.Machine;
 
@@ -148,7 +151,17 @@ public class PriorityScheduler extends Scheduler {
 
 		public KThread nextThread() {
 			Lib.assertTrue(Machine.interrupt().disabled());
-			// implement me
+			
+			if (owner != null) {
+				owner.donationList.remove(this);
+				owner.refresh();
+			}
+			ThreadState next = pickNextThread();
+			if (next != null) {
+				next.acquire(this);
+				return next.thread;
+			}
+			
 			return null;
 		}
 
@@ -159,8 +172,15 @@ public class PriorityScheduler extends Scheduler {
 		 * @return the next thread that <tt>nextThread()</tt> would return.
 		 */
 		protected ThreadState pickNextThread() {
-			// implement me
-			return null;
+			KThread res = null;
+			int max = -1;
+			for (KThread thread : waitList)
+				if (res == null || getEffectivePriority(thread) > max) {
+					res = thread;
+					max = getEffectivePriority(thread);
+				}
+			if (res == null) return null;
+			return getThreadState(res);
 		}
 
 		public void print() {
@@ -173,6 +193,9 @@ public class PriorityScheduler extends Scheduler {
 		 * threads to the owning thread.
 		 */
 		public boolean transferPriority;
+		
+		ThreadState owner = null;
+		LinkedList<KThread> waitList = new LinkedList<KThread>();
 	}
 
 	/**
@@ -211,8 +234,39 @@ public class PriorityScheduler extends Scheduler {
 		 * @return the effective priority of the associated thread.
 		 */
 		public int getEffectivePriority() {
-			// implement me
-			return priority;
+			if (effectivePriority != expiredPriority) return effectivePriority;
+			return getEffectivePriority(new HashSet<ThreadState>());
+		}
+
+		private int getEffectivePriority(HashSet<ThreadState> set) {
+			if (set.contains(this)) {
+				System.out.println("DeadLock!!");
+				return priority;
+			}
+			
+			effectivePriority = priority;
+			for (PriorityQueue q : donationList) {
+				if (q.transferPriority)
+					for (KThread t : q.waitList) {
+						set.add(this);
+						int tmp = getThreadState(t).getEffectivePriority(set);
+						set.remove(this);
+						if (tmp > effectivePriority)
+							effectivePriority = tmp;
+					}
+			}
+			
+			//Also need to check current thread's joinQueue;
+			PriorityQueue q = (PriorityQueue) thread.joinQueue;
+			for (KThread t : q.waitList) {
+				set.add(this);
+				int tmp = getThreadState(t).getEffectivePriority(set);
+				set.remove(this);
+				if (tmp > effectivePriority)
+					effectivePriority = tmp;
+			}
+			
+			return effectivePriority;
 		}
 
 		/**
@@ -227,7 +281,7 @@ public class PriorityScheduler extends Scheduler {
 
 			this.priority = priority;
 
-			// implement me
+			refresh();
 		}
 
 		/**
@@ -243,7 +297,9 @@ public class PriorityScheduler extends Scheduler {
 		 * @see nachos.threads.ThreadQueue#waitForAccess
 		 */
 		public void waitForAccess(PriorityQueue waitQueue) {
-			// implement me
+			waitQueue.waitList.add(thread);
+			if (waitQueue.owner != null)
+				waitQueue.owner.refresh();
 		}
 
 		/**
@@ -257,12 +313,25 @@ public class PriorityScheduler extends Scheduler {
 		 * @see nachos.threads.ThreadQueue#nextThread
 		 */
 		public void acquire(PriorityQueue waitQueue) {
-			// implement me
+			waitQueue.waitList.remove(thread);
+			waitQueue.owner = this;
+			donationList.add(waitQueue);
+			refresh();
+		}
+		
+		public void refresh() {
+			effectivePriority = expiredPriority; //expired
+			getEffectivePriority();
 		}
 
 		/** The thread with which this object is associated. */
 		protected KThread thread;
 		/** The priority of the associated thread. */
 		protected int priority;
+		
+		protected int effectivePriority = expiredPriority;
+		protected static final int expiredPriority = -1;
+		
+		protected LinkedList<PriorityQueue> donationList = new LinkedList<PriorityQueue>();
 	}
 }

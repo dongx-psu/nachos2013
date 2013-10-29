@@ -474,5 +474,5 @@ public class KThread {
 	private static KThread toBeDestroyed = null;
 	private static KThread idleThread = null;
 	
-	private ThreadQueue joinQueue = ThreadedKernel.scheduler.newThreadQueue(true);
+	ThreadQueue joinQueue = ThreadedKernel.scheduler.newThreadQueue(true);
 }
