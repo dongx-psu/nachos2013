@@ -36,7 +36,7 @@ public class Boat {
 		KThread t = new KThread(r);
 		t.setName("Sample Boat Thread");
 		t.fork();
-
+		t.join();
 	}
 
 	static void AdultItinerary() {
