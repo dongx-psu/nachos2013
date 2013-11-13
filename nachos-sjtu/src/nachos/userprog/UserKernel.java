@@ -1,5 +1,8 @@
 package nachos.userprog;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+
 import nachos.machine.*;
 import nachos.threads.*;
 
@@ -22,7 +25,12 @@ public class UserKernel extends ThreadedKernel {
 		super.initialize(args);
 
 		console = new SynchConsole(Machine.console());
-
+		
+		pageListLock = new Lock();
+		freePages = new LinkedList<Integer>();
+		for (int i = 0; i < Machine.processor().getNumPhysPages(); ++i)
+			freePages.add(i);
+		
 		Machine.processor().setExceptionHandler(new Runnable() {
 			public void run() {
 				exceptionHandler();
@@ -93,6 +101,7 @@ public class UserKernel extends ThreadedKernel {
 		super.run();
 
 		UserProcess process = UserProcess.newUserProcess();
+		rootProcess = process;
 
 		String shellProgram = Machine.getShellProgramName();
 		Lib.assertTrue(process.execute(shellProgram, new String[] {}));
@@ -106,8 +115,36 @@ public class UserKernel extends ThreadedKernel {
 	public void terminate() {
 		super.terminate();
 	}
+	
+	public static ArrayList<Integer> allocatePages(int n) {
+		pageListLock.acquire();
+		
+		if (freePages.size() < n) {
+			pageListLock.release();
+			return null;
+		}
+		
+		ArrayList<Integer> ans = new ArrayList<Integer>();
+		for (int i = 0; i < n; ++i)
+			ans.add(freePages.remove());
+		
+		pageListLock.release();
+		return ans;
+	}
+	
+	public static void releasePage(int x) {
+		pageListLock.acquire();
+		
+		freePages.add(x);
+		
+		pageListLock.release();
+	}
 
 	/** Globally accessible reference to the synchronized console. */
 	public static SynchConsole console;
+	
+	public static UserProcess rootProcess = null;
+	public static LinkedList<Integer> freePages;
+	public static Lock pageListLock;
 
 }

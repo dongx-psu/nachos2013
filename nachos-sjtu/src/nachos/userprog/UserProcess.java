@@ -4,6 +4,9 @@ import nachos.machine.*;
 import nachos.threads.*;
 
 import java.io.EOFException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Hashtable;
 
 /**
  * Encapsulates the state of a user process that is not contained in its user
@@ -22,10 +25,16 @@ public class UserProcess {
 	 * Allocate a new process.
 	 */
 	public UserProcess() {
-		int numPhysPages = Machine.processor().getNumPhysPages();
-		pageTable = new TranslationEntry[numPhysPages];
-		for (int i = 0; i < numPhysPages; i++)
-			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+		PID = processCount++;
+		returnStatus = -1;
+		
+		processList.put(PID, this);
+		childProcessList = new HashSet<Integer>();
+		over = new Semaphore(0);
+		
+		fileManager = new FileDescriptorManager();
+		fileManager.add(0, UserKernel.console.openForReading());
+		fileManager.add(1, UserKernel.console.openForWriting());
 	}
 
 	/**
@@ -71,6 +80,17 @@ public class UserProcess {
 	 */
 	public void restoreState() {
 		Machine.processor().setPageTable(pageTable);
+	}
+	
+	protected TranslationEntry getTranslationEntry(int pageNumber, boolean isWrite) {
+		if (pageNumber < 0 || pageNumber >= numPages)
+			return null;
+		TranslationEntry ans = pageTable[pageNumber];
+		if (ans == null) return null;
+		if (ans.readOnly && isWrite) return null;
+		ans.used = true;
+		if (isWrite) ans.dirty = true;
+		return ans;
 	}
 
 	/**
@@ -140,14 +160,29 @@ public class UserProcess {
 				&& offset + length <= data.length);
 
 		byte[] memory = Machine.processor().getMemory();
+		
+		int headPageNumber = Processor.pageFromAddress(vaddr);
+		int headOffset = Processor.offsetFromAddress(vaddr);
+		int tailPageNumber = Processor.pageFromAddress(vaddr+length);
+		
+		TranslationEntry entry = getTranslationEntry(headPageNumber, false);
+		if (entry == null) return 0;
+		
+		int amount = Math.min(length, pageSize - headOffset);
+		System.arraycopy(memory, Processor.makeAddress(entry.ppn, headOffset), data, offset, amount);
+		offset += amount;
 
-		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
-			return 0;
-
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(memory, vaddr, data, offset, amount);
-
+		for (int i = headPageNumber + 1; i <= tailPageNumber; ++i) {
+			entry = getTranslationEntry(i, false);
+			if (entry == null) return amount;
+			
+			int len = Math.min(length - amount, pageSize);
+			System.arraycopy(memory, Processor.makeAddress(entry.ppn, 0), data, offset, len);
+			
+			offset += len;
+			amount += len;
+		}
+		
 		return amount;
 	}
 
@@ -189,12 +224,27 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
-			return 0;
+		int headPageNumber = Processor.pageFromAddress(vaddr);
+		int headOffset = Processor.offsetFromAddress(vaddr);
+		int tailPageNumber = Processor.pageFromAddress(vaddr+length);
+		
+		TranslationEntry entry = getTranslationEntry(headPageNumber, true);
+		if (entry == null) return 0;
 
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(data, offset, memory, vaddr, amount);
+		int amount = Math.min(length, pageSize - headOffset);
+		System.arraycopy(data, offset, memory, Processor.makeAddress(entry.ppn, headOffset), amount);
+		offset += amount;
+		
+		for (int i = headPageNumber + 1; i <= tailPageNumber; ++i) {
+			entry = getTranslationEntry(i, true);
+			if (entry == null) return amount;
+			
+			int len = Math.min(length - amount, pageSize);
+			System.arraycopy(data, offset, memory, Processor.makeAddress(entry.ppn, 0), len);
+			
+			offset += len;
+			amount += len;
+		}
 
 		return amount;
 	}
@@ -300,11 +350,15 @@ public class UserProcess {
 	 * @return <tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
-		if (numPages > Machine.processor().getNumPhysPages()) {
+		ArrayList<Integer> physicalPages = UserKernel.allocatePages(numPages);
+		
+		if (physicalPages == null) {
 			coff.close();
 			Lib.debug(dbgProcess, "\tinsufficient physical memory");
 			return false;
 		}
+		
+		pageTable = new TranslationEntry[numPages];
 
 		// load sections
 		for (int s = 0; s < coff.getNumSections(); s++) {
@@ -315,12 +369,15 @@ public class UserProcess {
 
 			for (int i = 0; i < section.getLength(); i++) {
 				int vpn = section.getFirstVPN() + i;
-
-				// for now, just assume virtual addresses=physical addresses
+				int ppn = physicalPages.get(vpn);
+				pageTable[vpn] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
 				section.loadPage(i, vpn);
 			}
 		}
-
+		
+		for (int i = numPages - stackPages - 1; i < numPages; ++i)
+			pageTable[i] = new TranslationEntry(i, physicalPages.get(i), true, false, false, false);
+			
 		return true;
 	}
 
@@ -328,6 +385,11 @@ public class UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
+		coff.close();
+		
+		for (int i = 0; i < numPages; ++i)
+			UserKernel.releasePage(pageTable[i].ppn);
+		pageTable = null;
 	}
 
 	/**
@@ -361,6 +423,204 @@ public class UserProcess {
 		Machine.halt();
 
 		Lib.assertNotReached("Machine.halt() did not halt machine!");
+		return 0;
+	}
+	
+	private int handleExit(int status) {
+		this.returnStatus = status;
+		
+		for (int i = 2; i < maxFileDescriptorNum; ++i)
+			fileManager.close(i);
+		
+		unloadSections();
+		
+		processList.remove(PID);
+		deadProcessList.put(PID, this);
+		
+		over.V();
+		
+		if (processList.isEmpty())
+			Kernel.kernel.terminate();
+		
+		UThread.finish();
+		return 0;
+	}
+	
+	private int handleExec(int name, int argc, int argv) {
+		String filename = readVirtualMemoryString(name, maxFilenameLength);
+		
+		if (filename == null || !filename.endsWith(".coff")) {
+			Lib.debug(dbgProcess, "Invalid file name for Exec()");
+		}
+		
+		if (argc < 0) {
+			Lib.debug(dbgProcess, "argc < 0");
+			return -1;
+		}
+		
+		String[] args = new String[argc];
+		
+		for (int i = 0; i < argc; ++i) {
+			byte[] buffer = new byte[4];
+			if (readVirtualMemory(argv + i*4, buffer) != 4)
+				return -1;
+			
+			args[i] = readVirtualMemoryString(Lib.bytesToInt(buffer, 0), maxFilenameLength);
+			
+			if (args[i] == null)
+				return -1;
+		}
+		
+		UserProcess child = newUserProcess();
+		childProcessList.add(child.PID);
+		
+		saveState();
+		
+		if (!child.execute(filename, args)) {
+			Lib.debug(dbgProcess, "faild to execute child process");
+			return -1;
+		}
+		
+		return child.PID;
+	}
+	
+	private int handleJoin(int processID, int status) {
+		if (!childProcessList.contains(processID)) {
+			Lib.debug(dbgProcess, "processID does not refer to a child process of current process");
+			return -1;
+		}
+		
+		childProcessList.remove(processID);
+		
+		UserProcess child = processList.get(processID);
+		
+		if (child == null) {
+			Lib.debug(dbgProcess, "joining a dead process");
+			child = deadProcessList.get(processID);
+			if (child == null) {
+				Lib.debug(dbgProcess, "error in join()");
+				return -1;
+			}
+		}
+		
+		child.over.P();
+		
+		writeVirtualMemory(status, Lib.bytesFromInt(child.returnStatus));
+		
+		if (child.exitNormally) return 1;
+		else return 0;
+	}
+	
+	private int handleCreate(int name) {
+		String filename = readVirtualMemoryString(name, maxFilenameLength);
+		
+		if (filename == null) {
+			Lib.debug(dbgProcess, "Invalid file name pointer");
+			return -1;
+		}
+		
+		if (deletingList.contains(filename)) {
+			Lib.debug(dbgProcess, "File is now being deleted");
+			return -1;
+		}
+		
+		OpenFile file = UserKernel.fileSystem.open(filename, true);
+		
+		if (file == null) {
+			Lib.debug(dbgProcess, "Create file failed");
+			return -1;
+		}
+		
+		return fileManager.add(file);
+	}
+	
+	private int handleOpen(int name) {
+		String filename = readVirtualMemoryString(name, maxFilenameLength);
+		
+		if (filename == null) {
+			Lib.debug(dbgProcess, "Invalid file name pointer");
+			return -1;
+		}
+		
+		if (deletingList.contains(filename)) {
+			Lib.debug(dbgProcess, "File is now being deleted");
+			return -1;
+		}
+		
+		OpenFile file = UserKernel.fileSystem.open(filename, false);
+		
+		if (file == null) {
+			Lib.debug(dbgProcess, "Cannot open file");
+			return -1;
+		}
+		
+		return fileManager.add(file);
+	}
+	
+	private int handleRead(int fd, int buffer, int size) {
+		OpenFile file = fileManager.get(fd);
+		
+		if (file == null) {
+			Lib.debug(dbgProcess, "Invaild file descriptor");
+			return -1;
+		}
+		
+		if (!(buffer >= 0 && size >=0)) {
+			Lib.debug(dbgProcess, "Buffer and Size should be greater than zero");
+			return -1;
+		}
+		
+		byte buf[] = new byte[size];
+		int length = file.read(buf, 0, size);
+		
+		if (length == -1) {
+			Lib.debug(dbgProcess, "Fail to read the file");
+			return -1;
+		}
+		
+		length = writeVirtualMemory(buffer, buf, 0, length);
+		
+		return length;
+	}
+	
+	private int handleWrite(int fd, int buffer, int size) {
+		OpenFile file = fileManager.get(fd);
+		
+		if (file == null) {
+			Lib.debug(dbgProcess, "Invaild file descriptor");
+			return -1;
+		}
+		
+		if (!(buffer >= 0 && size >=0)) {
+			Lib.debug(dbgProcess, "Buffer and Size should be greater than zero");
+			return -1;
+		}
+		
+		byte buf[] = new byte[size];
+		int length = readVirtualMemory(buffer, buf, 0, size);
+
+		length = file.write(buf, 0, length);
+
+		return length;
+	}
+	
+	private int handleClose(int fd) {
+		return fileManager.close(fd);
+	}
+	
+	private int handleUnlink(int name) {
+		String fileName = readVirtualMemoryString(name, maxFilenameLength);
+
+		if (fileName == null) {
+			Lib.debug(dbgProcess, "Cannot read file name");
+			return -1;
+		}
+
+		if (UsingFiles.containsKey(fileName)) {
+			deletingList.add(fileName);
+		} else if (!UserKernel.fileSystem.remove(fileName))
+			return -1;
+
 		return 0;
 	}
 
@@ -439,9 +699,28 @@ public class UserProcess {
 		switch (syscall) {
 		case syscallHalt:
 			return handleHalt();
-
+		case syscallExit:
+			return handleExit(a0);
+		case syscallExec:
+			return handleExec(a0, a1, a2);
+		case syscallJoin:
+			return handleJoin(a0, a1);
+		case syscallCreate:
+			return handleCreate(a0);
+		case syscallOpen:
+			return handleOpen(a0);
+		case syscallRead:
+			return handleRead(a0, a1, a2);
+		case syscallWrite:
+			return handleWrite(a0, a1, a2);
+		case syscallClose:
+			return handleClose(a0);
+		case syscallUnlink:
+			return handleUnlink(a0);
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
+			exitNormally = false;
+			handleExit(-1);
 			Lib.assertNotReached("Unknown system call!");
 		}
 		return 0;
@@ -472,8 +751,66 @@ public class UserProcess {
 		default:
 			Lib.debug(dbgProcess, "Unexpected exception: "
 					+ Processor.exceptionNames[cause]);
+			exitNormally = false;
+			handleExit(-1);
 			Lib.assertNotReached("Unexpected exception");
 		}
+	}
+	
+	public class FileDescriptorManager {
+		public int add(OpenFile file) {
+			for (int i = 0; i < maxFileDescriptorNum; ++i)
+				if (handler[i] == null)
+					return add(i, file);
+			return -1;
+		}
+		
+		public int add(int i, OpenFile file) {
+			if (i < 0 || i > maxFileDescriptorNum)
+				return -1;
+			
+			if (handler[i] == null) {
+				handler[i] = file;
+				if (UsingFiles.get(file.getName()) != null)
+					UsingFiles.put(file.getName(), UsingFiles.get(file.getName()) + 1);
+				else UsingFiles.put(file.getName(), 1);
+				return i;
+			}
+			
+			return -1;
+		}
+		
+		public OpenFile get(int i) {
+			if (i < 0 || i > maxFileDescriptorNum) return null;
+			return handler[i];
+		}
+		
+		public int close(int i) {
+			if (handler[i] == null) {
+				Lib.debug(dbgProcess, "file descriptor " + i + "doesn't exist");
+				
+				return -1;
+			}
+			
+			OpenFile file = handler[i];
+			handler[i] = null;
+			file.close();
+			
+			String name = file.getName();
+			if (UsingFiles.get(name) > 1)
+				UsingFiles.put(name, UsingFiles.get(name) -1);
+			else {
+				UsingFiles.remove(name);
+				if (deletingList.contains(name)) {
+					deletingList.remove(name);
+					UserKernel.fileSystem.remove(name);
+				}
+			}
+			
+			return 0;
+		}
+		
+		public OpenFile handler[] = new OpenFile[maxFileDescriptorNum];
 	}
 
 	/** The program being run by this process. */
@@ -489,7 +826,25 @@ public class UserProcess {
 
 	private int initialPC, initialSP;
 	private int argc, argv;
+	
+	protected int PID;
+	protected static int processCount = 0;
+	
+	protected int returnStatus;
+	protected boolean exitNormally = true;
+	
+	protected Semaphore over;
 
-	private static final int pageSize = Processor.pageSize;
-	private static final char dbgProcess = 'a';
-}
+	protected FileDescriptorManager fileManager;
+	protected static final int maxFileDescriptorNum = 16;
+	protected static final int maxFilenameLength = 256;
+	protected static Hashtable<String, Integer> UsingFiles = new Hashtable<String, Integer>();
+	protected static HashSet<String> deletingList = new HashSet<String>();
+	
+	protected static final int pageSize = Processor.pageSize;
+	protected static final char dbgProcess = 'a';
+	
+	protected HashSet<Integer> childProcessList;
+	protected static Hashtable<Integer, UserProcess> processList = new Hashtable<Integer, UserProcess>();
+	protected static Hashtable<Integer, UserProcess> deadProcessList = new Hashtable<Integer, UserProcess>();
+};
