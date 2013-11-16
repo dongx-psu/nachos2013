@@ -4,7 +4,6 @@ import nachos.machine.*;
 import nachos.threads.*;
 
 import java.io.EOFException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Hashtable;
 
@@ -350,7 +349,7 @@ public class UserProcess {
 	 * @return <tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
-		ArrayList<Integer> physicalPages = UserKernel.allocatePages(numPages);
+		int[] physicalPages = UserKernel.allocatePages(numPages);
 		
 		if (physicalPages == null) {
 			coff.close();
@@ -369,14 +368,14 @@ public class UserProcess {
 
 			for (int i = 0; i < section.getLength(); i++) {
 				int vpn = section.getFirstVPN() + i;
-				int ppn = physicalPages.get(vpn);
+				int ppn = physicalPages[vpn];
 				pageTable[vpn] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
-				section.loadPage(i, vpn);
+				section.loadPage(i, ppn);
 			}
 		}
 		
 		for (int i = numPages - stackPages - 1; i < numPages; ++i)
-			pageTable[i] = new TranslationEntry(i, physicalPages.get(i), true, false, false, false);
+			pageTable[i] = new TranslationEntry(i, physicalPages[i], true, false, false, false);
 			
 		return true;
 	}
@@ -419,8 +418,9 @@ public class UserProcess {
 	 * Handle the halt() system call.
 	 */
 	private int handleHalt() {
+		if (this != UserKernel.rootProcess) return 0;
 
-		Machine.halt();
+		Kernel.kernel.terminate();
 
 		Lib.assertNotReached("Machine.halt() did not halt machine!");
 		return 0;
@@ -451,6 +451,7 @@ public class UserProcess {
 		
 		if (filename == null || !filename.endsWith(".coff")) {
 			Lib.debug(dbgProcess, "Invalid file name for Exec()");
+			return -1;
 		}
 		
 		if (argc < 0) {
@@ -616,7 +617,7 @@ public class UserProcess {
 			return -1;
 		}
 
-		if (UsingFiles.containsKey(fileName)) {
+		if (usingFiles.containsKey(fileName)) {
 			deletingList.add(fileName);
 		} else if (!UserKernel.fileSystem.remove(fileName))
 			return -1;
@@ -771,9 +772,9 @@ public class UserProcess {
 			
 			if (handler[i] == null) {
 				handler[i] = file;
-				if (UsingFiles.get(file.getName()) != null)
-					UsingFiles.put(file.getName(), UsingFiles.get(file.getName()) + 1);
-				else UsingFiles.put(file.getName(), 1);
+				if (usingFiles.get(file.getName()) != null)
+					usingFiles.put(file.getName(), usingFiles.get(file.getName()) + 1);
+				else usingFiles.put(file.getName(), 1);
 				return i;
 			}
 			
@@ -781,11 +782,16 @@ public class UserProcess {
 		}
 		
 		public OpenFile get(int i) {
-			if (i < 0 || i > maxFileDescriptorNum) return null;
+			if (i < 0 || i > maxFileDescriptorNum)
+				return null;
+			
 			return handler[i];
 		}
 		
 		public int close(int i) {
+			if (i < 0 || i > maxFileDescriptorNum)
+				return -1;
+			
 			if (handler[i] == null) {
 				Lib.debug(dbgProcess, "file descriptor " + i + "doesn't exist");
 				
@@ -797,10 +803,10 @@ public class UserProcess {
 			file.close();
 			
 			String name = file.getName();
-			if (UsingFiles.get(name) > 1)
-				UsingFiles.put(name, UsingFiles.get(name) -1);
+			if (usingFiles.get(name) > 1)
+				usingFiles.put(name, usingFiles.get(name) -1);
 			else {
-				UsingFiles.remove(name);
+				usingFiles.remove(name);
 				if (deletingList.contains(name)) {
 					deletingList.remove(name);
 					UserKernel.fileSystem.remove(name);
@@ -838,7 +844,7 @@ public class UserProcess {
 	protected FileDescriptorManager fileManager;
 	protected static final int maxFileDescriptorNum = 16;
 	protected static final int maxFilenameLength = 256;
-	protected static Hashtable<String, Integer> UsingFiles = new Hashtable<String, Integer>();
+	protected static Hashtable<String, Integer> usingFiles = new Hashtable<String, Integer>();
 	protected static HashSet<String> deletingList = new HashSet<String>();
 	
 	protected static final int pageSize = Processor.pageSize;
