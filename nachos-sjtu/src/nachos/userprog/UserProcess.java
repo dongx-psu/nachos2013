@@ -480,13 +480,12 @@ public class UserProcess {
 		}
 		
 		UserProcess child = newUserProcess();
+		childProcessList.add(child.PID);
+		saveState();
 		
 		if (!child.execute(filename, args)) {
 			Lib.debug(dbgProcess, "failed to execute child process");
 			return -1;
-		} else  {
-			childProcessList.add(child.PID);
-			saveState();
 		}
 		
 		return child.PID;
