@@ -26,8 +26,10 @@ public class UserProcess {
 	public UserProcess() {
 		PID = processCount++;
 		returnStatus = -1;
-		
+
+		processLock.acquire();
 		processList.put(PID, this);
+		processLock.release();
 		childProcessList = new HashSet<Integer>();
 		over = new Semaphore(0);
 		
@@ -60,7 +62,9 @@ public class UserProcess {
 	public boolean execute(String name, String[] args) {
 		if (!load(name, args))
 			return false;
-
+		
+		++activeProcesses;
+		
 		new UThread(this).setName(name).fork();
 
 		return true;
@@ -434,12 +438,15 @@ public class UserProcess {
 		
 		unloadSections();
 		
+		processLock.acquire();
+		activeProcesses--;
 		processList.remove(PID);
 		deadProcessList.put(PID, this);
+		processLock.release();
 		
 		over.V();
 		
-		if (processList.isEmpty())
+		if (activeProcesses == 0)
 			Kernel.kernel.terminate();
 		
 		UThread.finish();
@@ -473,13 +480,13 @@ public class UserProcess {
 		}
 		
 		UserProcess child = newUserProcess();
-		childProcessList.add(child.PID);
-		
-		saveState();
 		
 		if (!child.execute(filename, args)) {
-			Lib.debug(dbgProcess, "faild to execute child process");
+			Lib.debug(dbgProcess, "failed to execute child process");
 			return -1;
+		} else  {
+			childProcessList.add(child.PID);
+			saveState();
 		}
 		
 		return child.PID;
@@ -851,6 +858,8 @@ public class UserProcess {
 	protected static final char dbgProcess = 'a';
 	
 	protected HashSet<Integer> childProcessList;
+	protected static Lock processLock = new Lock();
+	protected static int activeProcesses = 0;
 	protected static Hashtable<Integer, UserProcess> processList = new Hashtable<Integer, UserProcess>();
 	protected static Hashtable<Integer, UserProcess> deadProcessList = new Hashtable<Integer, UserProcess>();
 };
