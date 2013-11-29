@@ -264,7 +264,7 @@ public class UserProcess {
 	 *            the arguments to pass to the executable.
 	 * @return <tt>true</tt> if the executable was successfully loaded.
 	 */
-	private boolean load(String name, String[] args) {
+	protected boolean load(String name, String[] args) {
 		Lib.debug(dbgProcess, "UserProcess.load(\"" + name + "\")");
 
 		OpenFile executable = ThreadedKernel.fileSystem.open(name, false);
@@ -421,7 +421,7 @@ public class UserProcess {
 	/**
 	 * Handle the halt() system call.
 	 */
-	private int handleHalt() {
+	protected int handleHalt() {
 		if (this != UserKernel.rootProcess) return 0;
 
 		Kernel.kernel.terminate();
@@ -430,7 +430,7 @@ public class UserProcess {
 		return 0;
 	}
 	
-	private int handleExit(int status) {
+	protected int handleExit(int status) {
 		this.returnStatus = status;
 		
 		for (int i = 2; i < maxFileDescriptorNum; ++i)
@@ -453,7 +453,7 @@ public class UserProcess {
 		return 0;
 	}
 	
-	private int handleExec(int name, int argc, int argv) {
+	protected int handleExec(int name, int argc, int argv) {
 		String filename = readVirtualMemoryString(name, maxFilenameLength);
 		
 		if (filename == null || !filename.endsWith(".coff")) {
@@ -491,7 +491,7 @@ public class UserProcess {
 		return child.PID;
 	}
 	
-	private int handleJoin(int processID, int status) {
+	protected int handleJoin(int processID, int status) {
 		if (!childProcessList.contains(processID)) {
 			Lib.debug(dbgProcess, "processID does not refer to a child process of current process");
 			return -1;
@@ -518,7 +518,7 @@ public class UserProcess {
 		else return 0;
 	}
 	
-	private int handleCreate(int name) {
+	protected int handleCreate(int name) {
 		String filename = readVirtualMemoryString(name, maxFilenameLength);
 		
 		if (filename == null) {
@@ -541,7 +541,7 @@ public class UserProcess {
 		return fileManager.add(file);
 	}
 	
-	private int handleOpen(int name) {
+	protected int handleOpen(int name) {
 		String filename = readVirtualMemoryString(name, maxFilenameLength);
 		
 		if (filename == null) {
@@ -564,7 +564,7 @@ public class UserProcess {
 		return fileManager.add(file);
 	}
 	
-	private int handleRead(int fd, int buffer, int size) {
+	protected int handleRead(int fd, int buffer, int size) {
 		OpenFile file = fileManager.get(fd);
 		
 		if (file == null) {
@@ -590,7 +590,7 @@ public class UserProcess {
 		return length;
 	}
 	
-	private int handleWrite(int fd, int buffer, int size) {
+	protected int handleWrite(int fd, int buffer, int size) {
 		OpenFile file = fileManager.get(fd);
 		
 		if (file == null) {
@@ -611,11 +611,11 @@ public class UserProcess {
 		return length;
 	}
 	
-	private int handleClose(int fd) {
+	protected int handleClose(int fd) {
 		return fileManager.close(fd);
 	}
 	
-	private int handleUnlink(int name) {
+	protected int handleUnlink(int name) {
 		String fileName = readVirtualMemoryString(name, maxFilenameLength);
 
 		if (fileName == null) {
@@ -631,7 +631,7 @@ public class UserProcess {
 		return 0;
 	}
 
-	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
+	protected static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
 			syscallRead = 6, syscallWrite = 7, syscallClose = 8,
 			syscallUnlink = 9;
@@ -836,8 +836,8 @@ public class UserProcess {
 	/** The number of pages in the program's stack. */
 	protected final int stackPages = Config.getInteger("Processor.numStackPages", 8);
 
-	private int initialPC, initialSP;
-	private int argc, argv;
+	protected int initialPC, initialSP;
+	protected int argc, argv;
 	
 	protected int PID;
 	protected static int processCount = 0;

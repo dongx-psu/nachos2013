@@ -1,5 +1,10 @@
 package nachos.vm;
 
+import java.util.Hashtable;
+
+import nachos.machine.Lib;
+import nachos.machine.Machine;
+import nachos.machine.TranslationEntry;
 import nachos.userprog.UserKernel;
 
 /**
@@ -18,6 +23,10 @@ public class VMKernel extends UserKernel {
 	 */
 	public void initialize(String[] args) {
 		super.initialize(args);
+		
+		coreMap = new Page[Machine.processor().getNumPhysPages()];
+		currentTLBManager = new TLBManager();
+		memoryManager = new ClockPagingMemManager();
 	}
 
 	/**
@@ -38,8 +47,31 @@ public class VMKernel extends UserKernel {
 	 * Terminate this kernel. Never returns.
 	 */
 	public void terminate() {
+		Lib.debug(dbgVM, "Virtual Memory Terminating");		
+		getSwapManager().close();
+		Lib.debug(dbgVM, "Page faults count: " + VMProcess.numPageFaults);
+		
 		super.terminate();
 	}
 
+	public static TranslationEntry getPageEntry(PageInfo info) {
+		Integer ppn = invertedPageTable.get(info);
+		if (ppn == null) return null;
+		Page res = coreMap[ppn];
+		if (res == null || !res.entry.valid) return null;
+		return res.entry;
+	}
+	
+	public static SwapManager getSwapManager() {
+		if (swapManager == null) swapManager = new SwapManager();
+		return swapManager;
+	}
+	
 	private static final char dbgVM = 'v';
+	
+	protected static Hashtable<PageInfo, Integer> invertedPageTable = new Hashtable<PageInfo, Integer>();
+	protected static Page[] coreMap;
+	protected static TLBManager currentTLBManager;
+	protected static MemoryManager memoryManager;
+	protected static SwapManager swapManager;
 }

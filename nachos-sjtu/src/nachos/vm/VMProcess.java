@@ -2,6 +2,8 @@ package nachos.vm;
 
 import nachos.machine.Machine;
 import nachos.machine.Processor;
+import nachos.machine.TranslationEntry;
+import nachos.threads.Lock;
 import nachos.userprog.UserProcess;
 
 /**
@@ -20,7 +22,7 @@ public class VMProcess extends UserProcess {
 	 * Called by <tt>UThread.saveState()</tt>.
 	 */
 	public void saveState() {
-		super.saveState();
+		VMKernel.currentTLBManager.clear();
 	}
 
 	/**
@@ -28,7 +30,7 @@ public class VMProcess extends UserProcess {
 	 * <tt>UThread.restoreState()</tt>.
 	 */
 	public void restoreState() {
-		super.restoreState();
+		//super.restoreState();
 	}
 
 	/**
@@ -38,14 +40,29 @@ public class VMProcess extends UserProcess {
 	 * @return <tt>true</tt> if successful.
 	 */
 	protected boolean loadSections() {
-		return super.loadSections();
+		lazyLoader = new LazyLoader(coff);
+		
+		return true;
 	}
 
 	/**
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
-		super.unloadSections();
+		coff.close();
+		
+		VMKernel.currentTLBManager.clear();
+		
+		for (int i = 0; i < numPages; ++i) {
+			PageInfo info = new PageInfo(PID, i);
+			Integer ppn = VMKernel.invertedPageTable.remove(info);
+			if (ppn != null) {
+				VMKernel.memoryManager.removePage(ppn);
+				VMKernel.coreMap[ppn].entry.valid = false;
+			}
+			
+			VMKernel.getSwapManager().deleteSwapPage(info);
+		}
 	}
 
 	/**
@@ -60,13 +77,49 @@ public class VMProcess extends UserProcess {
 		Processor processor = Machine.processor();
 
 		switch (cause) {
+		case Processor.exceptionTLBMiss:
+			handleTLBMissException(Processor.pageFromAddress(processor.readRegister(Processor.regBadVAddr)));
+			break;
 		default:
 			super.handleException(cause);
-			break;
 		}
+	}
+	
+	private void handleTLBMissException(int vpn) {
+		TranslationEntry entry = VMKernel.getPageEntry(new PageInfo(PID, vpn));
+		
+		if (entry == null) {
+			entry = handlePageFault(vpn);
+			if (entry == null) handleExit(-1);
+		}
+		
+		VMKernel.currentTLBManager.addEntry(entry);
+	}
+	
+	private TranslationEntry handlePageFault(int vpn) {
+		lock.acquire();
+		numPageFaults++;
+		TranslationEntry res = VMKernel.memoryManager.swapIn(new PageInfo(PID, vpn), lazyLoader);
+		lock.release();
+		return res;
+	}
+	
+	protected TranslationEntry getTranslationEntry(int vpn, boolean isWrite) {
+		TranslationEntry res = VMKernel.currentTLBManager.find(vpn, isWrite);
+		if (res == null) {
+			handleTLBMissException(vpn);
+			res = VMKernel.currentTLBManager.find(vpn, isWrite);
+		}
+		
+		return res;
 	}
 
 	private static final int pageSize = Processor.pageSize;
 	private static final char dbgProcess = 'a';
 	private static final char dbgVM = 'v';
+	
+	public static int numPageFaults = 0;
+	
+	private LazyLoader lazyLoader;
+	private static Lock lock = new Lock();
 }
