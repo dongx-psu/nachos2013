@@ -19,7 +19,7 @@ public class VMGrader extends CoffGrader {
 	private static final int ActionGetSwapSize = 21;
 
 	private String swapFile = null;
-
+	
 	@Override
 	protected void init() {
 		super.init();
@@ -57,6 +57,7 @@ public class VMGrader extends CoffGrader {
 				try {
 					InputStream stream = new FileInputStream(swap);
 					swapSize = stream.available();
+					System.out.println("swap size " + swapSize);
 					stream.close();
 				} catch (IOException e) {
 					swapSize = 0;

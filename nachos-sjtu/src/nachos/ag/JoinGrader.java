@@ -1,13 +1,13 @@
 package nachos.ag;
 
+import nachos.threads.KThread;
 import nachos.threads.ThreadedKernel;
 
 /**
  * A naive testgrader for join operation
- * 
  * @author Kang Zhang
  */
-public class JoinGrader extends BasicTestGrader {
+public class JoinGrader extends BasicTestGrader{
 	@Override
 	void run() {
 		// check dependency
@@ -20,9 +20,9 @@ public class JoinGrader extends BasicTestGrader {
 		assertTrue(times > 0, "invalid numThreads argument");
 		assertTrue(waitTicks > 0, "invalid waitTicks argument");
 
-		for (int i = 0; i < times; i++) {
+		for( int i = 0 ; i < times ; i++){
 
-			ThreadHandler handler = forkNewThread(new Runnable() {
+			ThreadHandler handler = forkNewThread(new Runnable(){
 				public void run() {
 					ThreadedKernel.alarm.waitUntil(waitTicks);
 				}
@@ -30,8 +30,7 @@ public class JoinGrader extends BasicTestGrader {
 
 			handler.thread.join();
 
-			assertTrue(handler.finished,
-					" join() returned but target thread is still running");
+			assertTrue(handler.finished, " join() returned but target thread is still running");
 		}
 
 		done();

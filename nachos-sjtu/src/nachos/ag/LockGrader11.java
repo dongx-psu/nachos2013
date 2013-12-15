@@ -7,9 +7,8 @@ import nachos.threads.ThreadedKernel;
 
 /**
  * LockGrader11 tests basic functions of locks.
- * 
  * @author TLP
- * 
+ *
  */
 public class LockGrader11 extends BasicTestGrader {
 	static int resource = 0;

@@ -9,7 +9,7 @@ import nachos.threads.RoundRobinScheduler;
 import nachos.threads.ThreadedKernel;
 
 /**
- * <li>ThreadGrader1: <b>Condition2</b><br>
+ * <li> ThreadGrader1: <b>Condition2</b><br>
  * <ol type=a>
  * <li>Test ThreadGrader1.a: Tests your condition variables using a few threads
  * <li>Test ThreadGrader1.b: Tests your condition variables using many threads

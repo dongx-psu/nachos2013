@@ -12,6 +12,8 @@ public class SwapManager {
 	public SwapManager() {
 		size = 0;
 		file = ThreadedKernel.fileSystem.open(swapFileName, true);
+		byte[] buf = new byte[Processor.pageSize * numSwapPage];
+		file.write(buf, 0, buf.length);
 	}
 	
 	public boolean write(int frameNo, byte[] data, int offset) {
@@ -68,6 +70,7 @@ public class SwapManager {
 		int frameNo;
 	}
 	
+	public static final int numSwapPage = 32;
 	public static final String swapFileName = "SWAP";
 	
 	private int size;

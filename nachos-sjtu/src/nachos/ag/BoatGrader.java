@@ -28,16 +28,16 @@ public class BoatGrader extends BasicTestGrader {
 		Lib.assertTrue(adults >= 0 && children >= 0,
 				"number can not be negative");
 
-		this.startTest(adults, children);
+		 this.startTest(adults, children);
 		done();
 	}
 
 	public void startTest(int adults, int children) {
-		adultsOahu = adults;
-		childrenOahu = children;
-		adultsMolokai = childrenMolokai = 0;
+		this.adultsOahu = adults;
+		this.childrenOahu = children;
+		this.adultsMolokai = this.childrenMolokai = 0;
 
-		Boat.begin(adultsOahu, childrenOahu, this);
+		Boat.begin(this.adultsOahu, childrenOahu, this);
 	}
 
 	protected int adultsOahu, childrenOahu;
@@ -153,12 +153,13 @@ public class BoatGrader extends BasicTestGrader {
 
 	@Override
 	public void readyThread(KThread thread) {
-		if (thread == idleThread) {
+		if (thread==idleThread) {
 			++idleReadyCount;
 			if (idleReadyCount > 1000)
 				AllCrossed();
-		} else
-			idleReadyCount = 0;
+		}
+		else
+			idleReadyCount=0;
 	}
 
 	/*
@@ -171,8 +172,8 @@ public class BoatGrader extends BasicTestGrader {
 	}
 
 	@Override
-	public void setIdleThread(KThread thread) {
-		thread = idleThread;
+	public void setIdleThread(KThread thread){
+		thread=idleThread;
 	}
 
 	KThread idleThread;

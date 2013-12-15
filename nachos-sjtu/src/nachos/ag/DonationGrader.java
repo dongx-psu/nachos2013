@@ -16,10 +16,8 @@ public class DonationGrader extends BasicTestGrader {
 
 	@Override
 	public void run() {
-		assertTrue(
-				ThreadedKernel.scheduler.getClass().getSimpleName()
-						.equals("PriorityScheduler"),
-				"This grader needs priority scheduler.");
+		assertTrue(ThreadedKernel.scheduler.getClass().getSimpleName().equals(
+				"PriorityScheduler"), "This grader needs priority scheduler.");
 
 		testLock();
 

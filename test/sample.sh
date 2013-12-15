@@ -5,6 +5,6 @@ matmult &
 matmult &
 matmult &
 matmult &
-exut
+abs
 exit
 end

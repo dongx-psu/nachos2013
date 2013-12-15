@@ -80,8 +80,9 @@ public class PriorityGrader extends BasicTestGrader {
 	@Override
 	public void runningThread(KThread thread) {
 		if (ready != null) {
-			assertTrue(ready.contains(getThreadHandler(thread)),
-					thread.getName() + " is not in the ready queue");
+			assertTrue(ready.contains(getThreadHandler(thread)), thread
+					.getName()
+					+ " is not in the ready queue");
 		}
 		super.runningThread(thread);
 		if (ready != null) {

@@ -115,7 +115,7 @@ public class VMProcess extends UserProcess {
 	}
 
 	private static final int pageSize = Processor.pageSize;
-	private static final char dbgProcess = 'a';
+	protected static final char dbgProcess = 'a';
 	private static final char dbgVM = 'v';
 	
 	public static int numPageFaults = 0;
