@@ -1,0 +1,25 @@
+Purpose:
+Test to create many directories in root.
+
+Usage:
+-- nachos.ag.FilesysGrader -x fs_num2.coff -# output=fs_num2.out,coffPar0=XXX
+
+Author:
+Meilun Sheng
+
+History:
+2010-01-07 Meilun Sheng: The first version.
+2010-01-07 Bo Tang: The second version. Add coffPar0
+
+Arguments:
+-output fs_num2.out // to compare answer
+-coffPar0=XXX // the number of directories autograder will create (less than 500)
+
+Sample:
+-- nachos.ag.FilesysGrader -x fs_num2.coff -# output=fs_num2.out,coffPar0=100
+
+Restrictions:
+To run this test, you should follow the specification in filesys_spec
+ATTENTION!!! Your directory must hold XXX files at least to pass it.
+If you copy other files into your disk, make your directory more powerful.
+ATTENTION2!!! This tester should be really slow, so be patient, or take a cup of tea. 

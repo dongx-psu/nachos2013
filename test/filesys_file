@@ -1,0 +1,31 @@
+Purpose:
+Test file with increasing size
+
+Usage:
+-- nachos.ag.FilesysGrader -x filesys_dir.coff -# testRoot=XXX,
+coffPar0=XXX,coffPar1=XXX,output=filesys_dir.out
+
+Author:
+Bo Tang
+
+History:
+2010-01-06 Bo Tang: The first version.
+
+Arguments:
+-output filesys_file.out
+-coffPar0 the number of bytes you add to the file for each time.
+-coffPar1 the number of time you add to the file. 
+MAKE SURE:  coffPar0 * coffPar1 less than your disk MAXFILESIZE(maybe 2MB).
+And coffPar1 <= 100, or you will mismactch the ouput.
+
+Restrictions:
+To run this test, you should follow the specification in filesys_spec, and 
+support the testSysCall getFreeDiskSize() which CONTAINS the sectors of your
+SWAPFILE takes.
+
+Sample:
+-- nachos.ag.FilesysGrader -x filesys_file.coff -[] ./conf/proj5.conf -# 
+testRoot=../nachos-test/,output=filesys_file.out,coffPar0=10240,coffPar1=100
+
+Note:
+You will need more  stack pages.
